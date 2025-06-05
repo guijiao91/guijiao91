@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Калькулятор углеродного следа</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #e9f5f2;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    label {
+      display: block;
+      margin: 15px 0 5px;
+      font-weight: 600;
+      color: #34495e;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 1em;
+    }
+
+    button {
+      background-color: #2ecc71;
+      color: white;
+      font-weight: bold;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #27ae60;
+    }
+
+    #result, #advice {
+      margin-top: 30px;
+      font-size: 1.1em;
+      background: #f0f9f6;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    #chart {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Калькулятор углеродного следа</h1>
+
+    <form id="carbon-form">
+      <!-- Транспорт -->
+      <h2>Транспорт</h2>
+      <label for="car-trips">Поездки на автомобиле (в месяц)</label>
+      <input type="number" id="car-trips" min="0" />
+      <label for="car-distance">Км на автомобиле в месяц</label>
+      <input type="number" id="car-distance" min="0" />
+      <label for="car-fuel">Тип топлива</label>
+      <select id="car-fuel">
+        <option value="бензин">Бензин</option>
+        <option value="дизель">Дизель</option>
+        <option value="электро">Электро</option>
+      </select>
+
+      <label for="public-transport">Общественный транспорт (поездок/мес)</label>
+      <input type="number" id="public-transport" min="0" />
+      <label for="flights">Авиаперелёты в год</label>
+      <input type="number" id="flights" min="0" />
+
+      <!-- Энергия -->
+      <h2>Энергопотребление</h2>
+      <label for="utilities">Счёт за ЖКХ (руб/мес)</label>
+      <input type="number" id="utilities" min="0" />
+
+      <!-- Питание -->
+      <h2>Питание</h2>
+      <label for="meat">Мясо</label>
+      <select id="meat">
+        <option value="daily">Ежедневно</option>
+        <option value="weekly">Несколько раз в неделю</option>
+        <option value="rare">Редко</option>
+        <option value="never">Никогда</option>
+      </select>
+
+      <label for="dairy">Молочные продукты</label>
+      <select id="dairy">
+        <option value="daily">Ежедневно</option>
+        <option value="weekly">Несколько раз в неделю</option>
+        <option value="rare">Редко</option>
+        <option value="never">Никогда</option>
+      </select>
+
+      <!-- Покупки -->
+      <h2>Покупки</h2>
+      <label for="clothes">Одежда (покупок/мес)</label>
+      <input type="number" id="clothes" min="0" />
+      <label for="electronics">Электроника (покупок/мес)</label>
+      <input type="number" id="electronics" min="0" />
+
+      <!-- Цифровая активность -->
+      <h2>Цифровая активность</h2>
+      <label for="internet-hours">Часов в интернете в день</label>
+      <input type="number" id="internet-hours" min="0" max="24" />
+      <label for="devices">Количество устройств</label>
+      <input type="number" id="devices" min="0" />
+
+      <button type="submit">Рассчитать углеродный след</button>
+    </form>
+
+    <div id="result"></div>
+    <canvas id="chart"></canvas>
+    <div id="advice"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("carbon-form");
+    const result = document.getElementById("result");
+    const ctx = document.getElementById("chart").getContext("2d");
+
+    let chart;
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      // ==== Базовые коэффициенты выбросов (упрощённые) ====
+      const fuelFactors = {
+        "бензин": 0.2,     // кг CO2 на км
+        "дизель": 0.23,
+        "электро": 0.05
+      };
+
+      const meatFactors = {
+        "daily": 300,
+        "weekly": 150,
+        "rare": 50,
+        "never": 10
+      };
+
+      const dairyFactors = {
+        "daily": 200,
+        "weekly": 100,
+        "rare": 30,
+        "never": 10
+      };
+
+      // ==== Считываем значения ====
+      const carDistance = +document.getElementById("car-distance").value || 0;
+      const carFuel = document.getElementById("car-fuel").value;
+      const publicTransport = +document.getElementById("public-transport").value || 0;
+      const flights = +document.getElementById("flights").value || 0;
+
+      const utilities = +document.getElementById("utilities").value || 0;
+
+      const meat = document.getElementById("meat").value;
+      const dairy = document.getElementById("dairy").value;
+
+      const clothes = +document.getElementById("clothes").value || 0;
+      const electronics = +document.getElementById("electronics").value || 0;
+
+      const internetHours = +document.getElementById("internet-hours").value || 0;
+      const devices = +document.getElementById("devices").value || 0;
+
+      // ==== Расчёт ====
+      const transportEmission = carDistance * fuelFactors[carFuel] +
+                                publicTransport * 1.2 + flights * 200;
+
+      const energyEmission = utilities * 0.002;
+
+      const foodEmission = meatFactors[meat] + dairyFactors[dairy];
+
+      const shoppingEmission = clothes * 25 + electronics * 70;
+
+      const digitalEmission = internetHours * 2 * 30 + devices * 15;
+
+      const total = transportEmission + energyEmission + foodEmission + shoppingEmission + digitalEmission;
+
+      // ==== Вывод ====
+      result.innerHTML = `<strong>Ваш ориентировочный углеродный след:</strong> ${total.toFixed(1)} кг CO₂ в месяц`;
+
+      // ==== Диаграмма ====
+      const data = {
+        labels: ["Транспорт", "Энергия", "Питание", "Покупки", "Цифровая активность"],
+        datasets: [{
+          label: "кг CO₂",
+          data: [
+            transportEmission.toFixed(1),
+            energyEmission.toFixed(1),
+            foodEmission.toFixed(1),
+            shoppingEmission.toFixed(1),
+            digitalEmission.toFixed(1)
+          ],
+          backgroundColor: ["#2ecc71", "#3498db", "#e67e22", "#9b59b6", "#e74c3c"]
+        }]
+      };
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: "кг CO₂" }
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
